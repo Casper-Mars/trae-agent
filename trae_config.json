@@ -9,7 +9,8 @@
       "max_tokens": 128000,
       "temperature": 0.5,
       "top_p": 1,
-      "max_retries": 10
+      "max_retries": 10,
+      "base_url": "https://api.openai.com/v1"
     },
     "anthropic": {
       "api_key": "your_anthropic_api_key", 
@@ -18,7 +19,8 @@
       "temperature": 0.5,
       "top_p": 1,
       "top_k": 0,
-      "max_retries": 10
+      "max_retries": 10,
+      "base_url": "https://api.anthropic.com"
     },
     "azure": {
       "api_key": "you_azure_api_key",

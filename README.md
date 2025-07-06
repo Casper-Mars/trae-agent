@@ -119,7 +119,8 @@ Trae Agent uses a JSON configuration file (`trae_config.json`) for settings:
       "model": "gpt-4o",
       "max_tokens": 128000,
       "temperature": 0.5,
-      "top_p": 1
+      "top_p": 1,
+      "base_url": "https://api.openai.com/v1"
     },
     "anthropic": {
       "api_key": "your_anthropic_api_key", 
@@ -127,11 +128,31 @@ Trae Agent uses a JSON configuration file (`trae_config.json`) for settings:
       "max_tokens": 4096,
       "temperature": 0.5,
       "top_p": 1,
-      "top_k": 0
+      "top_k": 0,
+      "base_url": "https://api.anthropic.com"
+    },
+    "azure": {
+      "api_key": "your_azure_api_key",
+      "base_url": "your_azure_base_url",
+      "api_version": "2024-03-01-preview",
+      "model": "model_name",
+      "max_tokens": 4096,
+      "temperature": 0.5,
+      "top_p": 1,
+      "top_k": 0,
+      "max_retries": 10
     }
   }
 }
 ```
+
+**Configuration Options:**
+
+- `base_url` (optional): Custom API endpoint URL for LLM providers
+  - For OpenAI: Use custom endpoints like Azure OpenAI or OpenAI-compatible APIs
+  - For Anthropic: Use custom endpoints or proxy services
+  - For Azure: Required - your Azure OpenAI endpoint URL
+  - If not specified, uses the default official API endpoints
 
 **Configuration Priority:**
 1. Command-line arguments (highest)

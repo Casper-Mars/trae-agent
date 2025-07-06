@@ -30,7 +30,12 @@ class OpenAIClient(BaseLLMClient):
         if self.api_key == "":
             raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY in environment variables or config file.")
 
-        self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
+        # Initialize OpenAI client with optional base_url
+        client_kwargs = {"api_key": self.api_key}
+        if self.base_url:
+            client_kwargs["base_url"] = self.base_url
+        
+        self.client: openai.OpenAI = openai.OpenAI(**client_kwargs)
         self.message_history: ResponseInputParam = []
 
     @override

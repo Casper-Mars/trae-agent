@@ -28,7 +28,12 @@ class AnthropicClient(BaseLLMClient):
         if self.api_key == "":
             raise ValueError("Anthropic API key not provided. Set ANTHROPIC_API_KEY in environment variables or config file.")
 
-        self.client: anthropic.Anthropic = anthropic.Anthropic(api_key=self.api_key)
+        # Initialize Anthropic client with optional base_url
+        client_kwargs = {"api_key": self.api_key}
+        if self.base_url:
+            client_kwargs["base_url"] = self.base_url
+        
+        self.client: anthropic.Anthropic = anthropic.Anthropic(**client_kwargs)
         self.message_history: list[anthropic.types.MessageParam] = []
         self.system_message: str | anthropic.NotGiven = anthropic.NOT_GIVEN
 
