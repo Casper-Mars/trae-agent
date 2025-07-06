@@ -42,7 +42,7 @@ class Agent(ABC):
         self.cli_console = cli_console
 
     @abstractmethod
-    def new_task(self, task: str, extra_args: dict[str, str] | None = None, tool_names: list[str] | None = None):
+    async def new_task(self, task: str, extra_args: dict[str, str] | None = None, tool_names: list[str] | None = None):
         """Create a new task."""
         pass
 

@@ -62,7 +62,7 @@ class TraeAgent(Agent):
         return recorder.get_trajectory_path()
 
     @override
-    def new_task(self, task: str, extra_args: dict[str, str] | None = None, tool_names: list[str] | None = None):
+    async def new_task(self, task: str, extra_args: dict[str, str] | None = None, tool_names: list[str] | None = None):
         """Create a new task."""
         self.task: str = task
 
@@ -76,6 +76,7 @@ class TraeAgent(Agent):
         if self.config.mcp_servers:
             self.mcp_registry = MCPToolRegistry(self.config)
         
+        # Initialize tool executor with base tools first
         self.tool_caller: ToolExecutor = ToolExecutor(self.tools)
 
         self.initial_messages: list[LLMMessage] = []
@@ -106,18 +107,6 @@ class TraeAgent(Agent):
                 )
             )
 
-        # If trajectory recorder is set, start recording
-        if self.trajectory_recorder:
-            self.trajectory_recorder.start_recording(
-                task=task,
-                provider=self.llm_client.provider.value,
-                model=self.model_parameters.model,
-                max_steps=self.max_steps
-            )
-
-    @override
-    async def execute_task(self) -> AgentExecution:
-        """Execute the task and finalize trajectory recording."""
         # Initialize MCP tools if registry is available
         if self.mcp_registry:
             try:
@@ -130,7 +119,19 @@ class TraeAgent(Agent):
                     print(f"Initialized {len(mcp_tools)} MCP tools")
             except Exception as e:
                 print(f"Warning: Failed to initialize MCP tools: {e}")
-        
+
+        # If trajectory recorder is set, start recording
+        if self.trajectory_recorder:
+            self.trajectory_recorder.start_recording(
+                task=task,
+                provider=self.llm_client.provider.value,
+                model=self.model_parameters.model,
+                max_steps=self.max_steps
+            )
+
+    @override
+    async def execute_task(self) -> AgentExecution:
+        """Execute the task and finalize trajectory recording."""
         if self.cli_console:
             console_task = asyncio.create_task(self.cli_console.start())
         else:

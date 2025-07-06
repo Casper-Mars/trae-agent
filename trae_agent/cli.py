@@ -138,8 +138,11 @@ def run(task: str, provider: str | None = None, model: str | None = None, api_ke
             "must_patch": "true" if must_patch else "false",
             "patch_path": patch_path
         }
-        agent.new_task(task, task_args)
-        _ = asyncio.run(agent.execute_task())
+        async def run_task():
+            await agent.new_task(task, task_args)
+            return await agent.execute_task()
+        
+        _ = asyncio.run(run_task())
 
         console.print(f"\n[green]Trajectory saved to: {trajectory_path}[/green]")
 
@@ -236,10 +239,13 @@ def interactive(provider: str | None = None, model: str | None = None, api_key: 
 
             # Execute the task
             console.print(f"\n[blue]Executing task: {task}[/blue]")
-            agent.new_task(task, task_args)
-
+            
+            async def run_interactive_task():
+                await agent.new_task(task, task_args)
+                return await agent.execute_task()
+            
             # Configure agent for progress display
-            _ = asyncio.run(agent.execute_task())
+            _ = asyncio.run(run_interactive_task())
 
             console.print(f"\n[green]Trajectory saved to: {trajectory_path}[/green]")
 
