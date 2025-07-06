@@ -24,6 +24,7 @@ class MCPServerManager:
     def __init__(self):
         self.servers: Dict[str, MCPServerConfig] = {}
         self.sessions: Dict[str, ClientSession] = {}
+        self.session_contexts: Dict[str, Any] = {}  # Store session context managers
         self.tools: Dict[str, MCPTool] = {}
         self.stdio_contexts: Dict[str, Any] = {}
         self._running = False
@@ -90,13 +91,19 @@ class MCPServerManager:
                 env=config.env
             )
             
-            # Create session with stdio transport
+            # Create session with stdio transport using proper context management
             stdio_context = stdio_client(server_params)
             read, write = await stdio_context.__aenter__()
-            session = ClientSession(read, write)
             
             # Store the context for cleanup
             self.stdio_contexts[server_name] = stdio_context
+            
+            # Create and initialize session using async context manager
+            session_context = ClientSession(read, write)
+            session = await session_context.__aenter__()
+            
+            # Store the session context for proper cleanup
+            self.session_contexts[server_name] = session_context
             
             # Initialize the session
             await session.initialize()
@@ -125,10 +132,19 @@ class MCPServerManager:
         """Stop a single MCP server."""
         if server_name in self.sessions:
             try:
-                session = self.sessions[server_name]
-                # Close the session if it has a close method
-                if hasattr(session, 'close'):
-                    await session.close()
+                # Clean up session using stored context manager
+                if server_name in self.session_contexts:
+                    session_context = self.session_contexts[server_name]
+                    await session_context.__aexit__(None, None, None)
+                    del self.session_contexts[server_name]
+                else:
+                    # Fallback for sessions without stored context
+                    session = self.sessions[server_name]
+                    if hasattr(session, '__aexit__'):
+                        await session.__aexit__(None, None, None)
+                    elif hasattr(session, 'close'):
+                        await session.close()
+                        
                 del self.sessions[server_name]
                 
                 # Clean up stdio context if exists
