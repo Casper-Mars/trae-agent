@@ -114,8 +114,8 @@ class TraeAgent(Agent):
                 # Add MCP tools to the tool executor
                 mcp_tools = self.mcp_registry.get_mcp_tools()
                 if mcp_tools:
-                    all_tools = self.tools + mcp_tools
-                    self.tool_caller = ToolExecutor(all_tools)
+                    self.tools = self.tools + mcp_tools
+                    self.tool_caller = ToolExecutor(self.tools)
                     print(f"Initialized {len(mcp_tools)} MCP tools")
             except Exception as e:
                 print(f"Warning: Failed to initialize MCP tools: {e}")
