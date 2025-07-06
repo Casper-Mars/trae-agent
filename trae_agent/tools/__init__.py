@@ -8,6 +8,9 @@ from .bash_tool import BashTool
 from .edit_tool import TextEditorTool
 from .sequential_thinking_tool import SequentialThinkingTool
 from .task_done_tool import TaskDoneTool
+from .mcp_tool import MCPTool, MCPServerConfig
+from .mcp_server_manager import MCPServerManager
+from .mcp_registry import MCPToolRegistry, create_enhanced_tool_registry
 
 __all__ = [
     "Tool",
@@ -17,7 +20,12 @@ __all__ = [
     "BashTool",
     "TextEditorTool",
     "SequentialThinkingTool",
-    "TaskDoneTool"
+    "TaskDoneTool",
+    "MCPTool",
+    "MCPServerConfig",
+    "MCPServerManager",
+    "MCPToolRegistry",
+    "create_enhanced_tool_registry"
 ]
 
 tools_registry = {

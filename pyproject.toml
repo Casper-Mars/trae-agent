@@ -3,7 +3,7 @@ name = "trae-agent"
 version = "0.1.0"
 description = "LLM-based agent for general purpose software engineering tasks"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "openai>=1.86.0",
     "anthropic>=0.54.0",
@@ -13,6 +13,9 @@ dependencies = [
     "rich>=13.0.0",
     "typing-extensions>=4.0.0",
     "socksio>=1.0.0",
+    "mcp>=1.4.0",
+    "websockets>=12.0",
+    "httpx>=0.25.0",
 ]
 
 [project.optional-dependencies]

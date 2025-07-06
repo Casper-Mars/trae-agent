@@ -11,8 +11,8 @@
 import json
 from pathlib import Path
 import os
-from dataclasses import dataclass
-from typing import override
+from dataclasses import dataclass, field
+from typing import override, Dict, List, Optional, Any
 
 
 # data class for model parameters
@@ -39,6 +39,22 @@ class LakeviewConfig:
 
 
 @dataclass
+class MCPServerConfig:
+    """Configuration for an MCP server."""
+    name: str
+    type: str  # "stdio", "http", "websocket"
+    command: Optional[str] = None
+    args: Optional[List[str]] = None
+    url: Optional[str] = None
+    api_key: Optional[str] = None
+    enabled: bool = True
+    env: Optional[Dict[str, str]] = None
+
+
+
+
+
+@dataclass
 class Config:
     """Configuration manager for Trae Agent."""
     default_provider: str
@@ -46,6 +62,8 @@ class Config:
     model_providers: dict[str, ModelParameters]
     lakeview_config: LakeviewConfig | None = None
     enable_lakeview: bool = True
+    mcp_servers: Dict[str, MCPServerConfig] = field(default_factory=dict)
+
 
     def __init__(self, config_file: str = "trae_config.json"):
         config_path = Path(config_file)
@@ -98,6 +116,21 @@ class Config:
                 model_provider=str(self._config.get("lakeview_config", {}).get("model_provider", "anthropic")),
                 model_name=str(self._config.get("lakeview_config", {}).get("model_name", "claude-sonnet-4-20250514")),
             )
+
+        # Parse MCP configuration
+        self.mcp_servers = {}
+        if "mcp_servers" in self._config:
+            for server_name, server_config in self._config["mcp_servers"].items():
+                self.mcp_servers[server_name] = MCPServerConfig(
+                    name=server_name,
+                    type=str(server_config.get("type", "stdio")),
+                    command=server_config.get("command"),
+                    args=server_config.get("args"),
+                    url=server_config.get("url"),
+                    api_key=server_config.get("api_key"),
+                    enabled=bool(server_config.get("enabled", True)),
+                    env=server_config.get("env")
+                )
 
         return
 

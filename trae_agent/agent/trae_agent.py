@@ -14,6 +14,7 @@ from ..utils.config import Config
 from ..utils.llm_basics import LLMMessage, LLMResponse
 from ..tools.base import Tool, ToolExecutor, ToolResult
 from ..tools import tools_registry
+from ..tools.mcp_registry import MCPToolRegistry
 
 TraeAgentToolNames = [
     "str_replace_based_edit_tool",
@@ -27,10 +28,12 @@ class TraeAgent(Agent):
     """Trae Agent specialized for software engineering tasks."""
 
     def __init__(self, config: Config):
+        self.config = config
         self.project_path: str = ""
         self.base_commit: str | None = None
         self.must_patch: str = "false"
         self.patch_path: str | None = None
+        self.mcp_registry: MCPToolRegistry | None = None
         super().__init__(config)
 
     def setup_trajectory_recording(self, trajectory_path: str | None = None) -> str:
@@ -65,7 +68,14 @@ class TraeAgent(Agent):
 
         if tool_names is None:
             tool_names = TraeAgentToolNames
+        
+        # Initialize base tools
         self.tools: list[Tool] = [tools_registry[tool_name]() for tool_name in tool_names]
+        
+        # Initialize MCP registry if servers are configured
+        if self.config.mcp_servers:
+            self.mcp_registry = MCPToolRegistry(self.config)
+        
         self.tool_caller: ToolExecutor = ToolExecutor(self.tools)
 
         self.initial_messages: list[LLMMessage] = []
@@ -108,11 +118,34 @@ class TraeAgent(Agent):
     @override
     async def execute_task(self) -> AgentExecution:
         """Execute the task and finalize trajectory recording."""
+        # Initialize MCP tools if registry is available
+        if self.mcp_registry:
+            try:
+                await self.mcp_registry.initialize()
+                # Add MCP tools to the tool executor
+                mcp_tools = self.mcp_registry.get_mcp_tools()
+                if mcp_tools:
+                    all_tools = self.tools + mcp_tools
+                    self.tool_caller = ToolExecutor(all_tools)
+                    print(f"Initialized {len(mcp_tools)} MCP tools")
+            except Exception as e:
+                print(f"Warning: Failed to initialize MCP tools: {e}")
+        
         if self.cli_console:
             console_task = asyncio.create_task(self.cli_console.start())
         else:
             console_task = None
-        execution = await super().execute_task()
+        
+        try:
+            execution = await super().execute_task()
+        finally:
+            # Cleanup MCP resources
+            if self.mcp_registry:
+                try:
+                    await self.mcp_registry.shutdown()
+                except Exception as e:
+                    print(f"Warning: Error during MCP cleanup: {e}")
+        
         if self.cli_console and console_task and not console_task.done():
             await console_task
 
