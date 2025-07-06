@@ -122,11 +122,25 @@ class OpenAIClient(BaseLLMClient):
 
         usage = None
         if response.usage:
+            # Safely extract cache and reasoning tokens
+            cache_read_tokens = 0
+            reasoning_tokens = 0
+            
+            if hasattr(response.usage, 'prompt_tokens_details') and response.usage.prompt_tokens_details:
+                prompt_details = response.usage.prompt_tokens_details
+                if hasattr(prompt_details, 'cached_tokens') and prompt_details.cached_tokens:
+                    cache_read_tokens = prompt_details.cached_tokens
+            
+            if hasattr(response.usage, 'completion_tokens_details') and response.usage.completion_tokens_details:
+                completion_details = response.usage.completion_tokens_details
+                if hasattr(completion_details, 'reasoning_tokens') and completion_details.reasoning_tokens:
+                    reasoning_tokens = completion_details.reasoning_tokens
+            
             usage = LLMUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-                cache_read_input_tokens=getattr(response.usage, 'prompt_tokens_details', {}).get('cached_tokens', 0) if hasattr(response.usage, 'prompt_tokens_details') else 0,
-                reasoning_tokens=getattr(response.usage, 'completion_tokens_details', {}).get('reasoning_tokens', 0) if hasattr(response.usage, 'completion_tokens_details') else 0
+                cache_read_input_tokens=cache_read_tokens,
+                reasoning_tokens=reasoning_tokens
             )
 
         llm_response = LLMResponse(
