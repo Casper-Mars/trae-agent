@@ -117,7 +117,7 @@ class LakeView:
         ]
 
         self.model_parameters.temperature = 0.1
-        llm_response = self.lakeview_llm_client.chat(
+        llm_response = await self.lakeview_llm_client.chat(
             model_parameters=self.model_parameters,
             messages=llm_messages,
             reuse_history=False
@@ -129,7 +129,7 @@ class LakeView:
         while retry < 10 and \
             ('</task>' not in content or '<details>' not in content or '</details>' not in content):
             retry += 1
-            llm_response = self.lakeview_llm_client.chat(
+            llm_response = await self.lakeview_llm_client.chat(
                 model_parameters=self.model_parameters,
                 messages=llm_messages,
                 reuse_history=False
@@ -173,7 +173,7 @@ class LakeView:
 
         retry = 0
         while retry < 10:
-            llm_response = self.lakeview_llm_client.chat(
+            llm_response = await self.lakeview_llm_client.chat(
                 model_parameters=self.model_parameters,
                 messages=llm_messages,
                 reuse_history=False

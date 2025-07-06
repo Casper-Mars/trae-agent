@@ -8,6 +8,7 @@ import os
 import openai
 import time
 import random
+import asyncio
 from typing import override
 
 from openai.types.chat import ChatCompletionFunctionMessageParam, ChatCompletionMessageParam, ChatCompletionToolParam, ChatCompletionSystemMessageParam, ChatCompletionAssistantMessageParam, ChatCompletionMessageToolCallParam, ChatCompletionUserMessageParam
@@ -58,7 +59,7 @@ class AzureClient(BaseLLMClient):
         self.message_history = self.parse_messages(messages)
 
     @override
-    def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
+    async def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
         """Send chat messages to model provider with optional tool support."""
         azure_messages = self.parse_messages(messages)
         if reuse_history:
@@ -94,8 +95,8 @@ class AzureClient(BaseLLMClient):
                 break
             except Exception as e:
                 error_message += f"Error {i + 1}: {str(e)}\n"
-                # Randomly sleep for 3-30 seconds
-                time.sleep(random.randint(3, 30))
+                # Randomly sleep for 3-30 seconds (async)
+                await asyncio.sleep(random.randint(3, 30))
                 continue
 
         if response is None:

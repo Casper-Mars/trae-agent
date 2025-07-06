@@ -45,9 +45,9 @@ class LLMClient:
         """Set the chat history."""
         self.client.set_chat_history(messages)
 
-    def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
+    async def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
         """Send chat messages to the LLM."""
-        return self.client.chat(messages, model_parameters, tools, reuse_history)
+        return await self.client.chat(messages, model_parameters, tools, reuse_history)
 
     def supports_tool_calling(self, model_parameters: ModelParameters) -> bool:
         """Check if the current client supports tool calling."""

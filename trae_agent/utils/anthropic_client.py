@@ -3,6 +3,7 @@
 
 """Anthropic API client wrapper with tool integration."""
 
+import asyncio
 import json
 import os
 import random
@@ -43,7 +44,7 @@ class AnthropicClient(BaseLLMClient):
         self.message_history = self.parse_messages(messages)
 
     @override
-    def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
+    async def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
         """Send chat messages to Anthropic with optional tool support."""
         # Convert messages to Anthropic format
         anthropic_messages : list[anthropic.types.MessageParam] = self.parse_messages(messages)
@@ -97,8 +98,8 @@ class AnthropicClient(BaseLLMClient):
                 break
             except Exception as e:
                 error_message += f"Error {i + 1}: {str(e)}\n"
-                # Randomly sleep for 3-30 seconds
-                time.sleep(random.randint(3, 30))
+                # Randomly sleep for 3-30 seconds (async)
+                await asyncio.sleep(random.randint(3, 30))
                 continue
 
         if response is None:
