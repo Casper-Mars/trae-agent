@@ -8,8 +8,9 @@ import json
 import random
 import time
 import openai
-from openai.types.responses import EasyInputMessageParam, FunctionToolParam, ResponseFunctionToolCallParam, ResponseInputParam
-from openai.types.responses.response_input_param import FunctionCallOutput
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam, ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam, ChatCompletionAssistantMessageParam, ChatCompletionToolMessageParam, ChatCompletionMessageToolCallParam
+from openai.types.chat.chat_completion_message_tool_call_param import Function
+from openai.types.shared_params.function_definition import FunctionDefinition
 from typing import override
 
 from ..tools.base import Tool, ToolCall, ToolResult
@@ -36,7 +37,7 @@ class OpenAIClient(BaseLLMClient):
             client_kwargs["base_url"] = self.base_url
         
         self.client: openai.OpenAI = openai.OpenAI(**client_kwargs)
-        self.message_history: ResponseInputParam = []
+        self.message_history: list[ChatCompletionMessageParam] = []
 
     @override
     def set_chat_history(self, messages: list[LLMMessage]) -> None:
@@ -46,15 +47,16 @@ class OpenAIClient(BaseLLMClient):
     @override
     def chat(self, messages: list[LLMMessage], model_parameters: ModelParameters, tools: list[Tool] | None = None, reuse_history: bool = True) -> LLMResponse:
         """Send chat messages to OpenAI with optional tool support."""
-        openai_messages: ResponseInputParam = self.parse_messages(messages)
+        openai_messages: list[ChatCompletionMessageParam] = self.parse_messages(messages)
 
         tool_schemas = None
         if tools:
-            tool_schemas = [FunctionToolParam(
-                name=tool.name,
-                description=tool.description,
-                parameters=tool.get_input_schema(),
-                strict=True,
+            tool_schemas = [ChatCompletionToolParam(
+                function=FunctionDefinition(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=tool.get_input_schema()
+                ),
                 type="function"
             ) for tool in tools]
 
@@ -67,13 +69,13 @@ class OpenAIClient(BaseLLMClient):
         error_message = ""
         for i in range(model_parameters.max_retries):
             try:
-                response = self.client.responses.create(
-                    input=self.message_history,
+                response = self.client.chat.completions.create(
                     model=model_parameters.model,
+                    messages=self.message_history,
                     tools=tool_schemas if tool_schemas else openai.NOT_GIVEN,
                     temperature=model_parameters.temperature,
                     top_p=model_parameters.top_p,
-                    max_output_tokens=model_parameters.max_tokens,
+                    max_tokens=model_parameters.max_tokens,
                 )
                 break
             except Exception as e:
@@ -85,56 +87,54 @@ class OpenAIClient(BaseLLMClient):
         if response is None:
             raise ValueError(f"Failed to get response from OpenAI after max retries: {error_message}")
 
-        content = ""
-        tool_calls: list[ToolCall] = []
-        for output_block in response.output:
-            if output_block.type == "function_call":
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        
+        tool_calls = None
+        if choice.message.tool_calls:
+            tool_calls: list[ToolCall] | None = []
+            for tool_call in choice.message.tool_calls:
                 tool_calls.append(ToolCall(
-                    call_id=output_block.call_id,
-                    name=output_block.name,
-                    arguments=json.loads(output_block.arguments) if output_block.arguments else {},
-                    id=output_block.id
+                    name=tool_call.function.name,
+                    call_id=tool_call.id,
+                    arguments=json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
                 ))
-                tool_call_param = ResponseFunctionToolCallParam(
-                    arguments=output_block.arguments,
-                    call_id=output_block.call_id,
-                    name=output_block.name,
-                    type="function_call",
-                )
-                if output_block.status:
-                    tool_call_param["status"] = output_block.status
-                if output_block.id:
-                    tool_call_param["id"] = output_block.id
-                self.message_history.append(tool_call_param)
-            elif output_block.type == "message":
-                for content_block in output_block.content:
-                    if content_block.type == "output_text":
-                        content += content_block.text
 
-        if content != "":
-            self.message_history.append(
-                EasyInputMessageParam(
-                    content=content,
-                    role="assistant",
-                    type="message"
-                )
-            )
+        # Update message history
+        if tool_calls:
+            self.message_history.append(ChatCompletionAssistantMessageParam(
+                role="assistant",
+                content=content,
+                tool_calls=[ChatCompletionMessageToolCallParam(
+                    id=tool_call.call_id,
+                    function=Function(
+                        name=tool_call.name,
+                        arguments=json.dumps(tool_call.arguments)
+                    ),
+                    type="function"
+                ) for tool_call in tool_calls]
+            ))
+        elif content:
+            self.message_history.append(ChatCompletionAssistantMessageParam(
+                content=content,
+                role="assistant"
+            ))
 
         usage = None
         if response.usage:
             usage = LLMUsage(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                cache_read_input_tokens=response.usage.input_tokens_details.cached_tokens,
-                reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+                cache_read_input_tokens=getattr(response.usage, 'prompt_tokens_details', {}).get('cached_tokens', 0) if hasattr(response.usage, 'prompt_tokens_details') else 0,
+                reasoning_tokens=getattr(response.usage, 'completion_tokens_details', {}).get('reasoning_tokens', 0) if hasattr(response.usage, 'completion_tokens_details') else 0
             )
 
         llm_response = LLMResponse(
             content=content,
             usage=usage,
             model=response.model,
-            finish_reason=response.status,
-            tool_calls=tool_calls if len(tool_calls) > 0 else None
+            finish_reason=choice.finish_reason,
+            tool_calls=tool_calls
         )
 
         # Record trajectory if recorder is available
@@ -163,48 +163,49 @@ class OpenAIClient(BaseLLMClient):
         ]
         return any(model in model_parameters.model for model in tool_capable_models)
 
-    def parse_messages(self, messages: list[LLMMessage]) -> ResponseInputParam:
+    def parse_messages(self, messages: list[LLMMessage]) -> list[ChatCompletionMessageParam]:
         """Parse the messages to OpenAI format."""
-        openai_messages: ResponseInputParam = []
+        openai_messages: list[ChatCompletionMessageParam] = []
         for msg in messages:
             if msg.tool_result:
                 openai_messages.append(self.parse_tool_call_result(msg.tool_result))
             elif msg.tool_call:
-                openai_messages.append(self.parse_tool_call(msg.tool_call))
+                # Tool calls are handled in message history update, skip here
+                continue
             else:
                 if not msg.content:
                     raise ValueError("Message content is required")
                 if msg.role == "system":
-                    openai_messages.append({"role": "system", "content": msg.content})
+                    openai_messages.append(ChatCompletionSystemMessageParam(
+                        role="system", 
+                        content=msg.content
+                    ))
                 elif msg.role == "user":
-                    openai_messages.append({"role": "user", "content": msg.content})
+                    openai_messages.append(ChatCompletionUserMessageParam(
+                        role="user", 
+                        content=msg.content
+                    ))
                 elif msg.role == "assistant":
-                    openai_messages.append({"role": "assistant", "content": msg.content})
+                    openai_messages.append(ChatCompletionAssistantMessageParam(
+                        role="assistant", 
+                        content=msg.content
+                    ))
                 else:
                     raise ValueError(f"Invalid message role: {msg.role}")
         return openai_messages
 
-    def parse_tool_call(self, tool_call: ToolCall) -> ResponseFunctionToolCallParam:
-        """Parse the tool call from the LLM response."""
-        return ResponseFunctionToolCallParam(
-            call_id=tool_call.call_id,
-            name=tool_call.name,
-            arguments=json.dumps(tool_call.arguments),
-            type="function_call",
-        )
-
-    def parse_tool_call_result(self, tool_call_result: ToolResult) -> FunctionCallOutput:
+    def parse_tool_call_result(self, tool_call_result: ToolResult) -> ChatCompletionToolMessageParam:
         """Parse the tool call result from the LLM response."""
         result: str = ""
         if tool_call_result.result:
             result = result + tool_call_result.result + "\n"
         if tool_call_result.error:
+            result += "Tool call failed with error:\n"
             result += tool_call_result.error
         result = result.strip()
 
-        return FunctionCallOutput(
-            call_id=tool_call_result.call_id,
-            id=tool_call_result.id,
-            output=result,
-            type="function_call_output",
+        return ChatCompletionToolMessageParam(
+            content=result,
+            role="tool",
+            tool_call_id=tool_call_result.call_id,
         )
